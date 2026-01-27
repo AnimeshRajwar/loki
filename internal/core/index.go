@@ -7,8 +7,13 @@ import (
 	"loki/internal/models"
 )
 
+type FileStatus struct {
+	Name   string
+	Status string // "modified", "added", "deleted"
+}
+
 type Index struct {
-	FilesList []string
+	FilesList []FileStatus
 }
 
 func LoadIndex() *Index {
@@ -21,8 +26,8 @@ func LoadIndex() *Index {
 	return &idx
 }
 
-func (i *Index) Add(file string) {
-	i.FilesList = append(i.FilesList, file)
+func (i *Index) Add(file string, status string) {
+	i.FilesList = append(i.FilesList, FileStatus{Name: file, Status: status})
 }
 
 func (i *Index) Save() {
@@ -30,12 +35,12 @@ func (i *Index) Save() {
 	_ = os.WriteFile(".loki/index", data, 0644)
 }
 
-func (i *Index) Files() []string {
+func (i *Index) Files() []FileStatus {
 	return i.FilesList
 }
 
 func (i *Index) Clear() {
-	i.FilesList = []string{}
+	i.FilesList = []FileStatus{}
 	i.Save()
 }
 
@@ -45,19 +50,16 @@ type ObjectStore interface {
 
 func (i *Index) WriteTree(store ObjectStore) string {
 	var entries []models.TreeEntry
-
-	for _, file := range i.FilesList {
-		data, _ := os.ReadFile(file)
+	for _, fs := range i.FilesList {
+		data, _ := os.ReadFile(fs.Name)
 		blob := &models.Blob{Content: data}
 		blobHash := store.WriteObject(blob.Serialize())
-
 		entries = append(entries, models.TreeEntry{
 			Mode: "100644",
-			Name: file,
+			Name: fs.Name,
 			Hash: decodeHash(blobHash),
 		})
 	}
-
 	tree := &models.Tree{Entries: entries}
 	return store.WriteObject(tree.Serialize())
 }

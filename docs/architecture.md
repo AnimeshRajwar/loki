@@ -34,7 +34,7 @@ loki/
   - `init.go`: Initializes a new Loki repository (`.loki/` folder).
   - `add.go`: Stages files for commit by adding them to the index.
   - `commit.go`: Creates a new commit from staged files.
-  - `status.go`: Shows which files are staged.
+  - `status.go`: Shows which files are staged, including their status as `added`, `modified`, or `deleted`.
   - `log.go`: Prints the commit log.
   - `help.go`: Prints help/usage information.
 
