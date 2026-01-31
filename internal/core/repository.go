@@ -35,7 +35,7 @@ func OpenRepository() *Repository {
 func IsRepoInitialized(path string) (string, bool) {
 	cur_path := path
 	for {
-		loki_check := filepath.Join(cur_path + ".loki")
+		loki_check := filepath.Join(cur_path, ".loki")
 
 		if info, err := os.Stat(loki_check); err == nil && info.IsDir() {
 			return cur_path, true
