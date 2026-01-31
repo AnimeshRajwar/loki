@@ -8,6 +8,7 @@ import (
 	"loki/internal/storage"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Repository struct {
@@ -166,11 +167,7 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 
 func (r *Repository) Commit(message string) string {
 	treeHash := r.index.WriteTree(r.store)
-	commit := &models.Commit{
-		Tree:    treeHash,
-		Message: message,
-	}
-	commitHash := r.store.WriteObject(commit.Serialize())
+	commitHash := r.store.WriteCommit(treeHash,message)
 	// Optionally update HEAD and log (not implemented here)
 	r.index.Clear()
 	return commitHash
@@ -181,6 +178,17 @@ func (r *Repository) Status() []FileStatus {
 }
 
 func (r *Repository) PrintLog() {
-	logs, _ := os.ReadFile(".loki/commits.log")
-	fmt.Println(string(logs))
+	logs, err := os.ReadFile(filepath.Join(r.store.GiveRoot(),"commits.log"))
+	if err != nil {
+		fmt.Println("No commit found.")
+		return
+	}
+	lines :=strings.Split(string(logs),"\n")
+	for _, line:= range lines{
+		if(line==""){
+			continue
+		}
+		parts:=strings.SplitN(line," ",2)
+		fmt.Printf("%s %s\n",parts[0],parts[1])
+}
 }
