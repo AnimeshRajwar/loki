@@ -7,6 +7,7 @@ import (
 	"loki/internal/models"
 	"loki/internal/storage"
 	"os"
+	"path/filepath"
 )
 
 type Repository struct {
@@ -19,6 +20,28 @@ func OpenRepository() *Repository {
 		store: storage.NewFileStorage(".loki"),
 		index: LoadIndex(),
 	}
+}
+
+// Check for loki repo
+func IsRepoInitialized(path string) (string, bool) {
+	cur_path := path
+	for {
+		loki_check := filepath.Join(cur_path + ".loki")
+
+		if info, err := os.Stat(loki_check); err == nil && info.IsDir() {
+			return cur_path, true
+		}
+
+		parent := filepath.Dir(cur_path)
+
+		if parent == cur_path {
+			break
+		}
+
+		cur_path = parent
+	}
+
+	return "", false
 }
 
 // Detects and sets status: "new file", "modified", or "deleted"

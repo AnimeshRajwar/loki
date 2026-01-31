@@ -15,6 +15,7 @@ loki/
 │   ├── core/
 │   ├── models/
 │   └── storage/
+│   └── utils/
 │
 ├── .gitignore
 ├── go.mod
@@ -58,6 +59,11 @@ loki/
 - **Files:**
   - `storage.go`: Defines the storage interface and file-based storage implementation.
   - `objects.go`: Handles writing objects (blobs, trees, commits) to disk, using Git-style hashing and compression.
+
+### internal/utils/
+- **Purpose:** Utility helpers for CLI and other internal operations.
+- **Files:**
+  - `cli.go`: Contains utility functions to support CLI operations and internal helpers used by commands or core logic.
 
 ## How It All Fits Together
 

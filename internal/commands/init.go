@@ -19,7 +19,6 @@ func Init() {
 
 	_ = os.WriteFile(".loki/HEAD", []byte("ref: refs/main"), 0644)
 
-
 	cwd, _ := os.Getwd()
 	absPath, _ := filepath.Abs(cwd)
 	fmt.Printf("Initialized empty Loki repository at %s\n", absPath)

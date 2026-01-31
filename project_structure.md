@@ -28,6 +28,9 @@ loki/
 │       ├── storage.go             # Storage interface + FileStorage impl
 │       └── objects.go             # Object storage (read/write/compress)
 │
+│   └── utils/                     # CLI and internal utility helpers
+│       └── cli.go                 # Utility functions for CLI operations
+│
 ├── .gitignore
 ├── go.mod
 ├── README.md
