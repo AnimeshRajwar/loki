@@ -7,6 +7,7 @@ import (
 
 	"loki/internal/commands"
 	"loki/internal/core"
+	"loki/internal/utils"
 )
 
 func main() {
@@ -18,9 +19,9 @@ func main() {
 	cwd, _ := os.Getwd()
 	absPath, _ := filepath.Abs(cwd)
 	if os.Args[0] == "./loki" && os.Args[1] != "help" && os.Args[1] != "init" {
-		path, check := core.IsRepoInitialized(absPath)
+		_, check := core.IsRepoInitialized(absPath)
 		if !check {
-			fmt.Println("fatal:" + path + " not a loki repository (or any of the parent directories)")
+			fmt.Println(utils.ColorText("fatal:"+cwd+" not a loki repository (or any of the parent directories)", "error"))
 			return
 		}
 	}
