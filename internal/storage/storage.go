@@ -29,3 +29,6 @@ func (fs *FileStorage) WriteCommit(tree, msg string) string {
 
 	return hash
 }
+func(fs *FileStorage) GiveRoot() string {
+	return fs.root
+}
