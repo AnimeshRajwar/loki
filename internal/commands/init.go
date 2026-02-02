@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"loki/internal/utils"
 	"os"
 	"path/filepath"
 )
@@ -21,5 +22,5 @@ func Init() {
 
 	cwd, _ := os.Getwd()
 	absPath, _ := filepath.Abs(cwd)
-	fmt.Printf("Initialized empty Loki repository at %s\n", absPath)
+	fmt.Printf(utils.ColorText("Initialized empty Loki repository at %s\n","success"), absPath)
 }

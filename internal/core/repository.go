@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"loki/internal/utils"
 )
 
 type Repository struct {
@@ -19,11 +20,11 @@ type Repository struct {
 func OpenRepository() *Repository {
 	cwd, err := os.Getwd()
 	if err != nil {
-		panic("Could not get current working directory")
+		panic(utils.ColorText("Could not get current working directory", "error"))
 	}
 	repoRoot, ok := IsRepoInitialized(cwd + string(os.PathSeparator))
 	if !ok {
-		fmt.Fprintln(os.Stderr, "fatal: not a loki repository (or any of the parent directories)")
+		fmt.Fprintln(os.Stderr, utils.ColorText("fatal: not a loki repository (or any of the parent directories)", "error"))
 		os.Exit(1)
 	}
 	return &Repository{
@@ -180,7 +181,7 @@ func (r *Repository) Status() []FileStatus {
 func (r *Repository) PrintLog() {
 	logs, err := os.ReadFile(filepath.Join(r.store.GiveRoot(), "commits.log"))
 	if err != nil {
-		fmt.Println("No commit found.")
+		fmt.Println(utils.ColorText("No commit found.", "error"))
 		return
 	}
 	lines := strings.Split(string(logs), "\n")
@@ -192,6 +193,6 @@ func (r *Repository) PrintLog() {
 		if len(parts) < 2 {
 			continue
 		}
-		fmt.Printf("%s %s\n", parts[0], parts[1])
+		fmt.Printf(utils.ColorText("%s %s\n", "info"), parts[0], parts[1])
 	}
 }

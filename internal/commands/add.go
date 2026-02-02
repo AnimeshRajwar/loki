@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"loki/internal/core"
+	"loki/internal/utils"
 )
 
 func Add(files []string) {
@@ -11,5 +12,5 @@ func Add(files []string) {
 	for _, f := range files {
 		repo.AddFile(f)
 	}
-	fmt.Println("Files added to staging area")
+	fmt.Println(utils.ColorText("Files added to staging area", "success"))
 }
