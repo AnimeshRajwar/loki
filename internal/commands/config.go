@@ -3,13 +3,14 @@ package commands
 import (
 	"fmt"
 	"loki/internal/config"
+	"loki/internal/utils"
 	"os"
 	"strings"
 )
 
 func Config(args []string) {
 	if len(args) < 1 {
-		fmt.Println("Usage: loki config [--local|--global|--system] key [value]")
+		fmt.Println(utils.ColorText("Usage: loki config [--local|--global|--system] key [value]", "warning"))
 		return
 	}
 
@@ -34,17 +35,17 @@ func Config(args []string) {
 		// Get
 		v := cfg.Get(key)
 		if v == "" {
-			fmt.Printf("%s not set\n", key)
+			fmt.Println(utils.ColorText(fmt.Sprintf("%s not set", key), "error"))
 		} else {
-			fmt.Printf("%s=%s\n", key, v)
+			fmt.Println(utils.ColorText(fmt.Sprintf("%s=%s", key, v), "info"))
 		}
 	} else {
 		// Set
 		err := cfg.Set(level, repoRoot, key, value)
 		if err != nil {
-			fmt.Printf("Error setting %s: %v\n", key, err)
+			fmt.Println(utils.ColorText(fmt.Sprintf("Error setting %s: %v", key, err), "error"))
 		} else {
-			fmt.Printf("Set %s=%s (%s)\n", key, value, level)
+			fmt.Println(utils.ColorText(fmt.Sprintf("Set %s=%s (%s)", key, value, level), "success"))
 		}
 	}
 }
