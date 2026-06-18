@@ -25,3 +25,5 @@ obj/
 *.swp
 *~
 .DS_Store
+
+/scripts

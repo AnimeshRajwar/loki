@@ -2,8 +2,8 @@ package core
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"loki/internal/models"
 	"loki/internal/storage"
 	"loki/internal/utils"
@@ -61,59 +61,17 @@ func IsRepoInitialized(path string) (string, bool) {
 
 // Detects and sets status: "new file", "modified", or "deleted"
 func (r *Repository) AddFile(path string) error {
-	lastTree := r.getLastCommitTree()
-	var status string
-	fileInLast := false
-	var lastHash []byte
-
-	if lastTree != nil {
-		for _, entry := range lastTree.Entries {
-			if entry.Name == path {
-				fileInLast = true
-				lastHash = entry.Hash
-				break
-			}
-		}
-	}
-
-	info, err := os.Stat(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			if fileInLast {
-				status = "deleted"
-			} else {
-				return fmt.Errorf("file does not exist")
-			}
-		} else {
-			return err
-		}
-	} else {
-		if info.IsDir() {
-			return fmt.Errorf("path is a directory")
-		}
-
-		if !fileInLast {
-			status = "added"
-		} else {
-			data, err := ioutil.ReadFile(path)
-			if err != nil {
-				return err
-			}
-
-			blob := &models.Blob{Content: data}
-			hash := r.store.WriteObject(blob.Serialize())
-
-			if !bytes.Equal(decodeHash(hash), lastHash) {
-				status = "modified"
-			} else {
-				// unchanged → not an error
-				return nil
-			}
-		}
+		return err
 	}
 
-	r.index.Add(path, status)
+	blob := &models.Blob{Content: data}
+	hash := r.store.WriteObject(blob.Serialize())
+
+	r.index.Add(path, hash)
 	r.index.Save()
+
 	return nil
 }
 
@@ -186,15 +144,51 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 }
 
 func (r *Repository) Commit(message string) string {
+	// 1. Write the tree and get its hash
 	treeHash := r.index.WriteTree(r.store)
-	commitHash := r.store.WriteCommit(treeHash, message)
-	// Optionally update HEAD and log (not implemented here)
+
+	// 2. Create a proper Commit object using the model
+	commitModel := &models.Commit{
+		Tree:    treeHash,
+		Message: message,
+	}
+
+	// 3. Serialize and write using the standard WriteObject (Git-style)
+	commitHash := r.store.WriteObject(commitModel.Serialize())
+
+	// 4. Update the log (optional but keeps log working)
+	f, _ := os.OpenFile(filepath.Join(r.store.GiveRoot(), "commits.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	defer f.Close()
+	f.WriteString(commitHash + " " + message + "\n")
+
 	r.index.Clear()
 	return commitHash
 }
 
 func (r *Repository) Status() []FileStatus {
-	return r.index.Files()
+	lastTree := r.getLastCommitTree()
+
+	var results []FileStatus
+
+	for path, indexHash := range r.index.Entries {
+		status := "added"
+
+		if lastTree != nil {
+			for _, entry := range lastTree.Entries {
+				if entry.Name == path {
+					if hex.EncodeToString(entry.Hash) == indexHash {
+						status = "staged (unchanged)"
+					} else {
+						status = "modified"
+					}
+
+					break
+				}
+			}
+		}
+		results = append(results, FileStatus{Name: path, Status: status})
+	}
+	return results
 }
 
 func (r *Repository) PrintLog() {
