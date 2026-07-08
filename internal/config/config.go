@@ -5,13 +5,28 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 const (
-	SystemConfigPath = "/etc/loki/config"
-	RepoConfigPath   = ".loki/config"
+	RepoConfigPath = ".loki/config"
 )
+
+// SystemConfigPath returns the OS-appropriate system config location.
+func SystemConfigPath() string {
+	switch runtime.GOOS {
+	case "windows":
+		if pd := os.Getenv("PROGRAMDATA"); pd != "" {
+			return filepath.Join(pd, "loki", "config")
+		}
+		return filepath.Join(string(os.PathSeparator), "ProgramData", "loki", "config")
+	case "darwin":
+		return filepath.Join(string(os.PathSeparator), "Library", "Application Support", "loki", "config")
+	default:
+		return filepath.Join(string(os.PathSeparator), "etc", "loki", "config")
+	}
+}
 
 type Config struct {
 	values map[string]string
@@ -23,10 +38,14 @@ func NewConfig() *Config {
 
 func (c *Config) Load(repoRoot string) error {
 	// System
-	c.loadFile(SystemConfigPath)
+	c.loadFile(SystemConfigPath())
 	// User
-	userPath := GlobalConfigPath()
-	c.loadFile(userPath)
+	// Load XDG user config (if XDG_CONFIG_HOME set) then fallback global file
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		c.loadFile(filepath.Join(xdg, "loki", "config"))
+	}
+	// fallback
+	c.loadFile(GlobalFallbackPath())
 	// Repo
 	if repoRoot != "" {
 		repoPath := filepath.Join(repoRoot, RepoConfigPath)
@@ -36,6 +55,19 @@ func (c *Config) Load(repoRoot string) error {
 }
 
 func GlobalConfigPath() string {
+	// If XDG_CONFIG_HOME is set, prefer $XDG_CONFIG_HOME/loki/config
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "loki", "config")
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(".", ".lokiconfig")
+	}
+	return filepath.Join(homeDir, ".lokiconfig")
+}
+
+// GlobalFallbackPath returns the legacy fallback user config (~/.lokiconfig)
+func GlobalFallbackPath() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return filepath.Join(".", ".lokiconfig")
@@ -79,9 +111,14 @@ func (c *Config) Get(key string) string {
 func (c *Config) Set(level, repoRoot, key, value string) error {
 	var path string
 	if level == "system" {
-		path = SystemConfigPath
+		path = SystemConfigPath()
 	} else if level == "global" {
-		path = GlobalConfigPath()
+		// Prefer XDG path when XDG_CONFIG_HOME is set, otherwise use fallback
+		if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+			path = filepath.Join(xdg, "loki", "config")
+		} else {
+			path = GlobalFallbackPath()
+		}
 	} else if level == "local" {
 		if repoRoot == "" {
 			return errors.New("repo root required for local config")

@@ -41,7 +41,7 @@ func Config(args []string) {
 	if level == "global" {
 		cfg.LoadPath(config.GlobalConfigPath())
 	} else if level == "system" {
-		cfg.LoadPath(config.SystemConfigPath)
+		cfg.LoadPath(config.SystemConfigPath())
 	} else {
 		cfg.LoadPath(config.LocalConfigPath(repoRoot))
 	}
