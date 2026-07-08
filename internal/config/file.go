@@ -8,8 +8,8 @@ import (
 func FindRepoRoot(start string) string {
 	dir := start
 	for {
-		configPath := filepath.Join(dir, ".loki/config")
-		if _, err := os.Stat(configPath); err == nil {
+		headPath := filepath.Join(dir, ".loki", "HEAD")
+		if _, err := os.Stat(headPath); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
