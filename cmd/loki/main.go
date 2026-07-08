@@ -10,6 +10,12 @@ import (
 	"loki/internal/utils"
 )
 
+var noRepoRequired = map[string]bool{
+	"init":   true,
+	"help":   true,
+	"config": true,
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		commands.Help()
@@ -18,11 +24,6 @@ func main() {
 
 	cwd, _ := os.Getwd()
 	absPath, _ := filepath.Abs(cwd)
-	noRepoRequired := map[string]bool{
-		"init":    true,
-		"help":    true,
-		"version": true,
-	}
 
 	if !noRepoRequired[os.Args[1]] {
 		_, check := core.IsRepoInitialized(absPath)

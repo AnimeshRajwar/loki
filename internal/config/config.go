@@ -10,7 +10,6 @@ import (
 
 const (
 	SystemConfigPath = "/etc/loki/config"
-	UserConfigPath   = ".loki/config"
 	RepoConfigPath   = ".loki/config"
 )
 
@@ -26,7 +25,7 @@ func (c *Config) Load(repoRoot string) error {
 	// System
 	c.loadFile(SystemConfigPath)
 	// User
-	userPath := filepath.Join(os.Getenv("HOME"), UserConfigPath)
+	userPath := GlobalConfigPath()
 	c.loadFile(userPath)
 	// Repo
 	if repoRoot != "" {
@@ -34,6 +33,22 @@ func (c *Config) Load(repoRoot string) error {
 		c.loadFile(repoPath)
 	}
 	return nil
+}
+
+func GlobalConfigPath() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(".", ".lokiconfig")
+	}
+	return filepath.Join(homeDir, ".lokiconfig")
+}
+
+func LocalConfigPath(repoRoot string) string {
+	return filepath.Join(repoRoot, RepoConfigPath)
+}
+
+func (c *Config) LoadPath(path string) {
+	c.loadFile(path)
 }
 
 func (c *Config) loadFile(path string) {
@@ -66,12 +81,12 @@ func (c *Config) Set(level, repoRoot, key, value string) error {
 	if level == "system" {
 		path = SystemConfigPath
 	} else if level == "global" {
-		path = filepath.Join(os.Getenv("HOME"), UserConfigPath)
+		path = GlobalConfigPath()
 	} else if level == "local" {
 		if repoRoot == "" {
 			return errors.New("repo root required for local config")
 		}
-		path = filepath.Join(repoRoot, RepoConfigPath)
+		path = LocalConfigPath(repoRoot)
 	} else {
 		return errors.New("invalid config level")
 	}
@@ -99,7 +114,9 @@ func setConfigValue(path, key, value string) error {
 		lines = append(lines, key+"="+value)
 	}
 
-	os.MkdirAll(filepath.Dir(path), 0755)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		return err

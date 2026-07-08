@@ -145,6 +145,71 @@ Initialized empty Loki repository at /home/user/myproject/.loki
 
 ---
 
+
+## System-wide installation (Linux / macOS / Windows)
+
+Install the built `loki` binary to a system folder and add that folder to the system PATH.
+
+### Linux / macOS (system-wide)
+Build then install to /usr/local/bin (or Apple Silicon: /opt/homebrew/bin):
+
+```sh
+# from project root
+go build -o loki ./cmd/loki
+
+# install (requires sudo)
+sudo install -m 0755 loki /usr/local/bin/loki
+
+# or for Apple Silicon Homebrew prefix
+sudo install -m 0755 loki /opt/homebrew/bin/loki
+```
+
+Restart shells or open a new terminal. Verify:
+
+```sh
+which loki
+loki --help
+```
+
+### Windows (system-wide — Administrator)
+
+PowerShell (run as Administrator):
+
+```powershell
+# path to the built loki.exe
+$src = "C:\path\to\loki.exe"
+$dst = "C:\Program Files\Loki"
+
+New-Item -ItemType Directory -Path $dst -Force
+Copy-Item $src -Destination $dst -Force
+
+$machinePath = [Environment]::GetEnvironmentVariable('Path','Machine')
+if ($machinePath -notlike "*$dst*") {
+  [Environment]::SetEnvironmentVariable('Path', "$machinePath;$dst", 'Machine')
+}
+```
+
+CMD (run as Administrator):
+
+```bat
+mkdir "C:\Program Files\Loki"
+copy "C:\path\to\loki.exe" "C:\Program Files\Loki\loki.exe"
+setx /M PATH "%PATH%;C:\Program Files\Loki"
+```
+
+Restart shells or sign out/in. Verify:
+
+```powershell
+where loki
+loki --help
+```
+
+Notes:
+- These changes are persistent system-wide.
+- Use the appropriate admin privileges and replace the paths above with the actual build locations.
+
+---
+
 ## CI
 
 This project includes a GitHub Actions CI workflow that automatically builds and tests Loki on every push and pull request.

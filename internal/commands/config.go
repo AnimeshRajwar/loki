@@ -27,9 +27,24 @@ func Config(args []string) {
 		}
 	}
 
-	repoRoot := config.FindRepoRoot(os.Getenv("PWD"))
 	cfg := config.NewConfig()
-	cfg.Load(repoRoot)
+	repoRoot := ""
+	if level == "local" {
+		cwd, _ := os.Getwd()
+		repoRoot = config.FindRepoRoot(cwd)
+		if repoRoot == "" {
+			fmt.Println(utils.ColorText("repo root required for local config", "error"))
+			return
+		}
+	}
+
+	if level == "global" {
+		cfg.LoadPath(config.GlobalConfigPath())
+	} else if level == "system" {
+		cfg.LoadPath(config.SystemConfigPath)
+	} else {
+		cfg.LoadPath(config.LocalConfigPath(repoRoot))
+	}
 
 	if value == "" {
 		// Get
