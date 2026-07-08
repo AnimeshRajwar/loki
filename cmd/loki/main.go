@@ -18,7 +18,13 @@ func main() {
 
 	cwd, _ := os.Getwd()
 	absPath, _ := filepath.Abs(cwd)
-	if os.Args[0] == "./loki" && os.Args[1] != "help" && os.Args[1] != "init" {
+	noRepoRequired := map[string]bool{
+		"init":    true,
+		"help":    true,
+		"version": true,
+	}
+
+	if !noRepoRequired[os.Args[1]] {
 		_, check := core.IsRepoInitialized(absPath)
 		if !check {
 			fmt.Println(utils.ColorText("fatal:", "error") + utils.ColorText(string(cwd), "notice") + utils.ColorText(" not a loki repository \n(or any of the parent directories)", "error"))
