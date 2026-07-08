@@ -156,10 +156,21 @@ func (r *Repository) Commit(message string) string {
 	// 3. Serialize and write using the standard WriteObject (Git-style)
 	commitHash := r.store.WriteObject(commitModel.Serialize())
 
-	// 4. Update the log (optional but keeps log working)
+	// 4. Update the log
 	f, _ := os.OpenFile(filepath.Join(r.store.GiveRoot(), "commits.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 	f.WriteString(commitHash + " " + message + "\n")
+
+	// 5. Fix: update branch ref so getLastCommitTree works
+	headData, err := os.ReadFile(".loki/HEAD")
+	if err == nil {
+		ref := string(bytes.TrimSpace(headData))
+		if len(ref) >= 5 && ref[:4] == "ref:" {
+			refPath := ".loki/" + ref[5:]
+			os.MkdirAll(filepath.Dir(refPath), 0755)
+			os.WriteFile(refPath, []byte(commitHash+"\n"), 0644)
+		}
+	}
 
 	r.index.Clear()
 	return commitHash
