@@ -143,7 +143,7 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 	return &models.Tree{Entries: entries}
 }
 
-func (r *Repository) Commit(message string) string {
+func (r *Repository) Commit(message, author, email string) string {
 	// 1. Write the tree and get its hash
 	treeHash := r.index.WriteTree(r.store)
 
@@ -151,6 +151,8 @@ func (r *Repository) Commit(message string) string {
 	commitModel := &models.Commit{
 		Tree:    treeHash,
 		Message: message,
+		Author:  author,
+		Email:   email,
 	}
 
 	// 3. Serialize and write using the standard WriteObject (Git-style)
