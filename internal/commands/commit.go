@@ -31,5 +31,5 @@ func Commit(args []string) {
 
 	repo := core.OpenRepository()
 	hash := repo.Commit(msg, author, email)
-	fmt.Println("Committed:", hash)
+	fmt.Printf("Committed: %s\nby %s\n<%s>\n", hash, author, email)
 }

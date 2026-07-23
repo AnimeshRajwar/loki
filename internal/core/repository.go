@@ -161,7 +161,7 @@ func (r *Repository) Commit(message, author, email string) string {
 	// 4. Update the log
 	f, _ := os.OpenFile(filepath.Join(r.store.GiveRoot(), "commits.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
-	f.WriteString(commitHash + " " + message + "\n")
+	f.WriteString(commitHash + " " + message + " " + author + " <" + email + ">\n")
 
 	// 5. Fix: update branch ref so getLastCommitTree works
 	headData, err := os.ReadFile(".loki/HEAD")
@@ -215,10 +215,18 @@ func (r *Repository) PrintLog() {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) < 2 {
-			continue
+		parts := strings.Split(line, " ")
+		if len(parts) >= 4 {
+			hash := parts[0]
+			email := parts[len(parts)-1]
+			author := parts[len(parts)-2]
+			msg := strings.Join(parts[1:len(parts)-2], " ")
+			fmt.Printf(utils.ColorText("Commit: %s\nMessage: %s\nAuthor: %s\n%s\n\n", "info"), hash, msg, author, email)
+		} else {
+			p := strings.SplitN(line, " ", 2)
+			if len(p) >= 2 {
+				fmt.Printf(utils.ColorText("Commit: %s\n%s\n\n", "info"), p[0], p[1])
+			}
 		}
-		fmt.Printf(utils.ColorText("%s %s\n", "info"), parts[0], parts[1])
 	}
 }
