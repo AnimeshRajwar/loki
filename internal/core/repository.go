@@ -93,8 +93,7 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 	}
 	commitHash := string(bytes.TrimSpace(refHashData))
 	// Read commit object
-	objPath := ".loki/objects/" + commitHash[:2] + "/" + commitHash[2:]
-	objData, err := os.ReadFile(objPath)
+	objData, err := r.store.ReadObject(commitHash)
 	if err != nil {
 		return nil
 	}
@@ -110,8 +109,7 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 		return nil
 	}
 	// Read tree object
-	treeObjPath := ".loki/objects/" + treeHash[:2] + "/" + treeHash[2:]
-	treeData, err := os.ReadFile(treeObjPath)
+	treeData, err := r.store.ReadObject(treeHash)
 	if err != nil {
 		return nil
 	}
