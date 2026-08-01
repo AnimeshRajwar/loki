@@ -83,15 +83,17 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 		return nil
 	}
 	ref := string(bytes.TrimSpace(headData))
-	if len(ref) < 5 || ref[:4] != "ref:" {
-		return nil
+	var commitHash string
+	if len(ref) >= 5 && ref[:4] == "ref:" {
+		refPath := ".loki/" + ref[5:]
+		refHashData, err := os.ReadFile(refPath)
+		if err != nil {
+			return nil
+		}
+		commitHash = string(bytes.TrimSpace(refHashData))
+	} else {
+		commitHash = ref
 	}
-	refPath := ".loki/" + ref[5:]
-	refHashData, err := os.ReadFile(refPath)
-	if err != nil {
-		return nil
-	}
-	commitHash := string(bytes.TrimSpace(refHashData))
 	// Read commit object
 	objData, err := r.store.ReadObject(commitHash)
 	if err != nil {
@@ -169,6 +171,8 @@ func (r *Repository) Commit(message, author, email string) string {
 			refPath := ".loki/" + ref[5:]
 			os.MkdirAll(filepath.Dir(refPath), 0755)
 			os.WriteFile(refPath, []byte(commitHash+"\n"), 0644)
+		} else {
+			os.WriteFile(".loki/HEAD", []byte(commitHash+"\n"), 0644)
 		}
 	}
 
