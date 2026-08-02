@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"errors"
 )
 
 type Repository struct {
@@ -212,23 +213,69 @@ func (r *Repository) PrintLog() {
 		fmt.Println(utils.ColorText("No commit found.", "error"))
 		return
 	}
+
 	lines := strings.Split(string(logs), "\n")
+
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
+
 		parts := strings.Split(line, " ")
+
 		if len(parts) >= 4 {
 			hash := parts[0]
 			email := parts[len(parts)-1]
 			author := parts[len(parts)-2]
 			msg := strings.Join(parts[1:len(parts)-2], " ")
-			fmt.Printf(utils.ColorText("Commit: %s\nMessage: %s\nAuthor: %s\n%s\n\n", "info"), hash, msg, author, email)
+
+			fmt.Printf(
+				utils.ColorText("Commit: %s\nMessage: %s\nAuthor: %s\n%s\n\n", "info"),
+				hash,
+				msg,
+				author,
+				email,
+			)
 		} else {
 			p := strings.SplitN(line, " ", 2)
+
 			if len(p) >= 2 {
-				fmt.Printf(utils.ColorText("Commit: %s\n%s\n\n", "info"), p[0], p[1])
+				fmt.Printf(
+					utils.ColorText("Commit: %s\n%s\n\n", "info"),
+					p[0],
+					p[1],
+				)
 			}
 		}
 	}
+} 
+
+func (r *Repository) Checkout(target string) error {
+
+	refPath := filepath.Join(".loki", "refs", "heads", target)
+
+	if _, err := os.Stat(refPath); err == nil {
+
+		data, err := os.ReadFile(refPath)
+		if err != nil {
+			return err
+		}
+
+		commitHash := strings.TrimSpace(string(data))
+
+		fmt.Println("Branch:", target)
+		fmt.Println("Commit:", commitHash)
+
+		return nil
+	}
+
+	if len(target) == 40 {
+
+		fmt.Println("Detached checkout")
+		fmt.Println("Commit:", target)
+
+		return nil
+	}
+
+	return errors.New("branch or commit not found")
 }
