@@ -46,10 +46,13 @@ func main() {
 		commands.Log()
 	case "branch":
 		commands.Branch(os.Args[2:])
+	case "rm":
+	    commands.Rm(os.Args[2:])
 	case "help":
 		commands.Help()
 	case "config":
 		commands.Config(os.Args[2:])
+    
 	default:
 		fmt.Println("Unknown command:", os.Args[1])
 		commands.Help()

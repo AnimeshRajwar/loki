@@ -34,6 +34,10 @@ func (i *Index) Add(path string, hash string) {
 	i.Entries[path] = hash
 }
 
+func (i *Index) Remove(path string) {
+	delete(i.Entries, path)
+}
+
 func (i *Index) Save() {
 	data, _ := json.Marshal(i)
 	_ = os.WriteFile(".loki/index", data, 0644)

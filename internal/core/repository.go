@@ -74,6 +74,25 @@ func (r *Repository) AddFile(path string) error {
 
 	return nil
 }
+func (r *Repository) RemoveFile(path string) error {
+	// Check if the file exists
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+
+	// Delete the file from the filesystem
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+
+	// Remove it from the index
+	r.index.Remove(path)
+
+	// Save the updated index
+	r.index.Save()
+
+	return nil
+}
 
 // Helper: get last commit's tree (if any)
 func (r *Repository) getLastCommitTree() *models.Tree {
@@ -186,6 +205,16 @@ func (r *Repository) Status() []FileStatus {
 	var results []FileStatus
 
 	for path, indexHash := range r.index.Entries {
+		_, err := os.Stat(path)
+
+    if os.IsNotExist(err) {
+        results = append(results, FileStatus{
+            Name:   path,
+            Status: "deleted",
+        })
+        continue
+    }
+
 		status := "added"
 
 		if lastTree != nil {
