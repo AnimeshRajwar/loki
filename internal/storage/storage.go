@@ -2,6 +2,7 @@ package storage
 
 type ObjectStore interface {
 	WriteObject(data []byte) string
+	ReadObject(hashStr string) ([]byte, error)
 }
 
 type FileStorage struct {

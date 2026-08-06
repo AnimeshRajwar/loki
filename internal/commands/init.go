@@ -12,13 +12,14 @@ func Init() {
 		".loki",
 		".loki/objects",
 		".loki/refs",
+		".loki/refs/heads",
 	}
 
 	for _, d := range dirs {
 		_ = os.MkdirAll(d, 0755)
 	}
 
-	_ = os.WriteFile(".loki/HEAD", []byte("ref: refs/main"), 0644)
+	_ = os.WriteFile(".loki/HEAD", []byte("ref: refs/heads/main"), 0644)
 
 	configPath := filepath.Join(".loki", "config")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {

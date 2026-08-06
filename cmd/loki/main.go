@@ -46,6 +46,8 @@ func main() {
 		commands.Diff(os.Args[2:])
 	case "log":
 		commands.Log()
+	case "branch":
+		commands.Branch(os.Args[2:])
 	case "help":
 		commands.Help()
 	case "config":

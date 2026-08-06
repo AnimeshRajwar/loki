@@ -30,6 +30,9 @@ func (fs *FileStorage) WriteObject(data []byte) string {
 
 // ReadObject reads and decompresses an object from the storage root.
 func (fs *FileStorage) ReadObject(hashStr string) ([]byte, error) {
+	if len(hashStr) < 2 {
+		return nil, os.ErrNotExist
+	}
 	dir := filepath.Join(fs.root, "objects", hashStr[:2])
 	file := filepath.Join(dir, hashStr[2:])
 
