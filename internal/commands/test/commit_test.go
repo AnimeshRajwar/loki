@@ -8,6 +8,9 @@ import (
 )
 
 func TestCommit_DefaultMessage(t *testing.T) {
+	oldCwd, _ := os.Getwd()
+	defer os.Chdir(oldCwd)
+
 	tempDir := t.TempDir()
 	os.Chdir(tempDir)
 	commands.Init()
@@ -22,6 +25,9 @@ func TestCommit_DefaultMessage(t *testing.T) {
 }
 
 func TestCommit_WithMessage(t *testing.T) {
+	oldCwd, _ := os.Getwd()
+	defer os.Chdir(oldCwd)
+
 	tempDir := t.TempDir()
 	os.Chdir(tempDir)
 	commands.Init()

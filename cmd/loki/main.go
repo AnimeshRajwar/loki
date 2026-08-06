@@ -42,6 +42,8 @@ func main() {
 		commands.Commit(os.Args[2:])
 	case "status":
 		commands.Status()
+	case "diff":
+		commands.Diff(os.Args[2:])
 	case "log":
 		commands.Log()
 	case "help":

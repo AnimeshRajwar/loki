@@ -8,6 +8,9 @@ import (
 )
 
 func TestAdd_NoFiles(t *testing.T) {
+	oldCwd, _ := os.Getwd()
+	defer os.Chdir(oldCwd)
+
 	tempDir := t.TempDir()
 	os.Chdir(tempDir)
 	commands.Init()
