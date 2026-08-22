@@ -106,7 +106,7 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 		objData = objData[idx+1:]
 	}
 	var treeHash string
-	for _, line := range bytes.Split(objData, []byte("\n")) {
+	for _, line := range bytes.Split(content, []byte("\n")) {
 		if bytes.HasPrefix(line, []byte("tree ")) {
 			treeHash = string(line[5:])
 			break
@@ -127,25 +127,81 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 	if idx < 0 {
 		return nil
 	}
-	treeData = treeData[idx+1:]
-	for len(treeData) > 0 {
+	// Parse tree entries
+	entries := []models.TreeEntry{}
+	for len(treeContent) > 0 {
 		// Format: mode name\0hash(20 bytes)
-		sp := bytes.IndexByte(treeData, ' ')
+		sp := bytes.IndexByte(treeContent, ' ')
 		if sp < 0 {
 			break
 		}
-		mode := string(treeData[:sp])
-		treeData = treeData[sp+1:]
-		nul := bytes.IndexByte(treeData, 0)
+		mode := string(treeContent[:sp])
+		treeContent = treeContent[sp+1:]
+		nul := bytes.IndexByte(treeContent, 0)
 		if nul < 0 {
 			break
 		}
-		name := string(treeData[:nul])
-		hash := treeData[nul+1 : nul+21]
+		name := string(treeContent[:nul])
+		if len(treeContent) < nul+21 {
+			break
+		}
+		hash := treeContent[nul+1 : nul+21]
 		entries = append(entries, models.TreeEntry{Mode: mode, Name: name, Hash: hash})
-		treeData = treeData[nul+21:]
+		treeContent = treeContent[nul+21:]
 	}
 	return &models.Tree{Entries: entries}
+}
+
+func parseObject(data []byte) (string, []byte, error) {
+	idx := bytes.IndexByte(data, 0)
+	if idx < 0 {
+		return "", nil, fmt.Errorf("invalid object: missing header separator")
+	}
+	header := string(data[:idx])
+	content := data[idx+1:]
+	parts := strings.Split(header, " ")
+	if len(parts) < 2 {
+		return "", nil, fmt.Errorf("invalid object header format")
+	}
+	return parts[0], content, nil
+}
+
+// ReadBlob retrieves raw blob content by its hash.
+func (r *Repository) ReadBlob(hash string) (string, error) {
+	data, err := r.store.ReadObject(hash)
+	if err != nil {
+		return "", err
+	}
+	objType, content, err := parseObject(data)
+	if err != nil {
+		return "", err
+	}
+	if objType != "blob" {
+		return "", fmt.Errorf("object is not a blob: %s", objType)
+	}
+	return string(content), nil
+}
+
+// GetHeadTreeEntries retrieves the file path to hex hash mappings for the HEAD commit.
+func (r *Repository) GetHeadTreeEntries() (map[string]string, error) {
+	tree := r.getLastCommitTree()
+	entries := make(map[string]string)
+	if tree == nil {
+		return entries, nil
+	}
+	for _, entry := range tree.Entries {
+		entries[entry.Name] = hex.EncodeToString(entry.Hash)
+	}
+	return entries, nil
+}
+
+// GetIndexEntries retrieves the current index entries.
+func (r *Repository) GetIndexEntries() map[string]string {
+	entries := make(map[string]string)
+	for k, v := range r.index.Entries {
+		entries[k] = v
+	}
+	return entries
 }
 
 func (r *Repository) Commit(message, author, email string) string {
