@@ -106,7 +106,7 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 		objData = objData[idx+1:]
 	}
 	var treeHash string
-	for _, line := range bytes.Split(content, []byte("\n")) {
+	for _, line := range bytes.Split(objData, []byte("\n")) {
 		if bytes.HasPrefix(line, []byte("tree ")) {
 			treeHash = string(line[5:])
 			break
@@ -127,8 +127,7 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 	if idx < 0 {
 		return nil
 	}
-	// Parse tree entries
-	entries := []models.TreeEntry{}
+	treeContent := treeData[idx+1:]
 	for len(treeContent) > 0 {
 		// Format: mode name\0hash(20 bytes)
 		sp := bytes.IndexByte(treeContent, ' ')
