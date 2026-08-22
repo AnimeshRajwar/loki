@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"loki/internal/models"
@@ -100,9 +101,9 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 		return nil
 	}
 	// Parse commit to get tree hash
-	_, content, err := parseObject(objData)
-	if err != nil {
-		return nil
+	idx := bytes.IndexByte(objData, 0)
+	if idx >= 0 {
+		objData = objData[idx+1:]
 	}
 	var treeHash string
 	for _, line := range bytes.Split(content, []byte("\n")) {
@@ -119,8 +120,11 @@ func (r *Repository) getLastCommitTree() *models.Tree {
 	if err != nil {
 		return nil
 	}
-	_, treeContent, err := parseObject(treeData)
-	if err != nil {
+	// Parse tree entries
+	entries := []models.TreeEntry{}
+	// Skip header ("tree <len>\0")
+	idx = bytes.IndexByte(treeData, 0)
+	if idx < 0 {
 		return nil
 	}
 	// Parse tree entries
@@ -201,10 +205,10 @@ func (r *Repository) GetIndexEntries() map[string]string {
 }
 
 func (r *Repository) Commit(message, author, email string) string {
-	// 1. Write the tree and get its hash
+	// Write the tree and get its hash
 	treeHash := r.index.WriteTree(r.store)
 
-	// 2. Create a proper Commit object using the model
+	// Create a proper Commit object using the model
 	commitModel := &models.Commit{
 		Tree:    treeHash,
 		Message: message,
@@ -212,15 +216,15 @@ func (r *Repository) Commit(message, author, email string) string {
 		Email:   email,
 	}
 
-	// 3. Serialize and write using the standard WriteObject (Git-style)
+	// Serialize and write using the standard WriteObject (Git-style)
 	commitHash := r.store.WriteObject(commitModel.Serialize())
 
-	// 4. Update the log
+	// Update the log
 	f, _ := os.OpenFile(filepath.Join(r.store.GiveRoot(), "commits.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 	f.WriteString(commitHash + " " + message + " " + author + " <" + email + ">\n")
 
-	// 5. Fix: update branch ref so getLastCommitTree works
+	// update branch ref so getLastCommitTree works
 	headData, err := os.ReadFile(".loki/HEAD")
 	if err == nil {
 		ref := string(bytes.TrimSpace(headData))
@@ -288,4 +292,226 @@ func (r *Repository) PrintLog() {
 			}
 		}
 	}
+}
+
+func (r *Repository) Checkout(target string) error {
+	commitHash, headContent, err := r.resolveCheckoutTarget(target)
+	if err != nil {
+		return err
+	}
+
+	treeHash, err := r.commitTreeHash(commitHash)
+	if err != nil {
+		return err
+	}
+
+	if err := r.ensureCleanForCheckout(); err != nil {
+		return err
+	}
+
+	currentTracked := map[string]string{}
+	if headCommit, err := r.resolveHeadCommitHash(); err == nil && headCommit != "" {
+		if headTreeHash, err := r.commitTreeHash(headCommit); err == nil && headTreeHash != "" {
+			if err := r.collectTreeFiles(headTreeHash, "", currentTracked); err != nil {
+				return err
+			}
+		}
+	}
+
+	for path := range currentTracked {
+		if strings.HasPrefix(path, ".loki/") || path == ".loki" {
+			continue
+		}
+		_ = os.Remove(filepath.FromSlash(path))
+	}
+
+	targetFiles := map[string]string{}
+	if err := r.collectTreeFiles(treeHash, "", targetFiles); err != nil {
+		return err
+	}
+
+	r.index.Entries = make(map[string]string)
+	for path, blobHash := range targetFiles {
+		blobData, err := r.store.ReadObject(blobHash)
+		if err != nil {
+			return fmt.Errorf("failed to read blob %s: %v", blobHash, err)
+		}
+		content := objectBody(blobData)
+
+		osPath := filepath.FromSlash(path)
+		if err := os.MkdirAll(filepath.Dir(osPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %v", path, err)
+		}
+		if err := os.WriteFile(osPath, content, 0644); err != nil {
+			return fmt.Errorf("failed to write file %s: %v", path, err)
+		}
+		r.index.Add(path, blobHash)
+	}
+	r.index.Save()
+
+	if err := os.WriteFile(".loki/HEAD", []byte(headContent+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to update HEAD: %v", err)
+	}
+
+	return nil
+}
+
+func objectBody(data []byte) []byte {
+	idx := bytes.IndexByte(data, 0)
+	if idx >= 0 {
+		return data[idx+1:]
+	}
+	return data
+}
+
+func normalizeRepoPath(path string) string {
+	cleaned := filepath.Clean(path)
+	if cleaned == "." {
+		return ""
+	}
+	return filepath.ToSlash(cleaned)
+}
+
+func blobHashForContent(data []byte) string {
+	blob := (&models.Blob{Content: data}).Serialize()
+	sum := sha1.Sum(blob)
+	return hex.EncodeToString(sum[:])
+}
+
+func sameFileMap(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *Repository) resolveHeadCommitHash() (string, error) {
+	headData, err := os.ReadFile(".loki/HEAD")
+	if err != nil {
+		return "", err
+	}
+	ref := strings.TrimSpace(string(headData))
+	if strings.HasPrefix(ref, "ref: ") {
+		refPath := filepath.Join(".loki", strings.TrimPrefix(ref, "ref: "))
+		refHashData, err := os.ReadFile(refPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return "", nil
+			}
+			return "", err
+		}
+		return strings.TrimSpace(string(refHashData)), nil
+	}
+	return ref, nil
+}
+
+func (r *Repository) commitTreeHash(commitHash string) (string, error) {
+	objData, err := r.store.ReadObject(commitHash)
+	if err != nil {
+		return "", fmt.Errorf("target commit %s not found", commitHash)
+	}
+	body := objectBody(objData)
+	for _, line := range bytes.Split(body, []byte("\n")) {
+		if bytes.HasPrefix(line, []byte("tree ")) {
+			return strings.TrimSpace(string(line[5:])), nil
+		}
+	}
+	return "", fmt.Errorf("commit %s has no tree", commitHash)
+}
+
+func (r *Repository) resolveCheckoutTarget(target string) (string, string, error) {
+	refPath := filepath.Join(".loki", "refs", "heads", target)
+	if _, err := os.Stat(refPath); err == nil {
+		hashData, err := os.ReadFile(refPath)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to read branch file: %v", err)
+		}
+		commitHash := strings.TrimSpace(string(hashData))
+		if commitHash == "" {
+			return "", "", fmt.Errorf("branch %s has no commit", target)
+		}
+		return commitHash, "ref: refs/heads/" + target, nil
+	}
+
+	return target, target, nil
+}
+
+func (r *Repository) collectTreeFiles(treeHash, prefix string, out map[string]string) error {
+	treeData, err := r.store.ReadObject(treeHash)
+	if err != nil {
+		return fmt.Errorf("failed to read tree object %s: %v", treeHash, err)
+	}
+	body := objectBody(treeData)
+	for len(body) > 0 {
+		sp := bytes.IndexByte(body, ' ')
+		if sp < 0 {
+			break
+		}
+		mode := string(body[:sp])
+		body = body[sp+1:]
+
+		nul := bytes.IndexByte(body, 0)
+		if nul < 0 {
+			break
+		}
+		name := string(body[:nul])
+		if len(body) < nul+21 {
+			break
+		}
+		hashBytes := body[nul+1 : nul+21]
+		hashHex := hex.EncodeToString(hashBytes)
+		body = body[nul+21:]
+
+		joined := name
+		if prefix != "" {
+			joined = prefix + "/" + name
+		}
+		joined = normalizeRepoPath(joined)
+
+		if mode == "40000" {
+			if err := r.collectTreeFiles(hashHex, joined, out); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if joined != "" {
+			out[joined] = hashHex
+		}
+	}
+	return nil
+}
+
+func (r *Repository) ensureCleanForCheckout() error {
+	headFiles := map[string]string{}
+	headCommit, err := r.resolveHeadCommitHash()
+	if err != nil {
+		return fmt.Errorf("failed to resolve HEAD: %v", err)
+	}
+	if headCommit != "" {
+		headTreeHash, err := r.commitTreeHash(headCommit)
+		if err != nil {
+			return err
+		}
+		if err := r.collectTreeFiles(headTreeHash, "", headFiles); err != nil {
+			return err
+		}
+	}
+
+	for path, expectedHash := range headFiles {
+		content, err := os.ReadFile(filepath.FromSlash(path))
+		if err != nil {
+			return fmt.Errorf("working directory is not clean, missing tracked file: %s", path)
+		}
+		if blobHashForContent(content) != expectedHash {
+			return fmt.Errorf("working directory is not clean, unstaged changes in: %s", path)
+		}
+	}
+
+	return nil
 }
