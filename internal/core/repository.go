@@ -14,8 +14,10 @@ import (
 )
 
 type Repository struct {
-	store *storage.FileStorage
-	index *Index
+	store  *storage.FileStorage
+	index  *Index
+	ignore *IgnoreMatcher
+	root   string
 }
 
 func (r *Repository) Stat(path string) (os.FileInfo, error) {
@@ -33,8 +35,10 @@ func OpenRepository() *Repository {
 		os.Exit(1)
 	}
 	return &Repository{
-		store: storage.NewFileStorage(filepath.Join(repoRoot, ".loki")),
-		index: LoadIndex(),
+		store:  storage.NewFileStorage(filepath.Join(repoRoot, ".loki")),
+		index:  LoadIndex(),
+		ignore: LoadIgnore(repoRoot),
+		root:   repoRoot,
 	}
 }
 
@@ -58,6 +62,15 @@ func IsRepoInitialized(path string) (string, bool) {
 	}
 
 	return "", false
+}
+
+func (r *Repository) IsIgnored(path string) bool {
+	return r.ignore.Matches(path)
+}
+
+func (r *Repository) RemoveFile(path string) {
+	r.index.Remove(path)
+	r.index.Save()
 }
 
 // Detects and sets status: "new file", "modified", or "deleted"
@@ -241,28 +254,75 @@ func (r *Repository) Commit(message, author, email string) string {
 }
 
 func (r *Repository) Status() []FileStatus {
-	lastTree := r.getLastCommitTree()
+	headFiles := map[string]string{}
+	headCommit, err := r.resolveHeadCommitHash()
+	if err == nil && headCommit != "" {
+		if headTreeHash, err := r.commitTreeHash(headCommit); err == nil && headTreeHash != "" {
+			_ = r.collectTreeFiles(headTreeHash, "", headFiles)
+		}
+	}
+
+	indexFiles := r.index.Entries
+
+	wdFiles := map[string]string{}
+	filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path == ".loki" || r.IsIgnored(path) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if r.IsIgnored(path) {
+			return nil
+		}
+
+		path = filepath.ToSlash(path)
+		wdFiles[path] = ""
+		return nil
+	})
 
 	var results []FileStatus
 
-	for path, indexHash := range r.index.Entries {
-		status := "added"
+	// 1. Index vs HEAD (Staged changes)
+	for path, indexHash := range indexFiles {
+		headHash, inHead := headFiles[path]
+		if !inHead {
+			results = append(results, FileStatus{Name: path, Status: "staged (added)"})
+		} else if indexHash != headHash {
+			results = append(results, FileStatus{Name: path, Status: "staged (modified)"})
+		}
+	}
+	for path := range headFiles {
+		if _, inIndex := indexFiles[path]; !inIndex {
+			results = append(results, FileStatus{Name: path, Status: "staged (deleted)"})
+		}
+	}
 
-		if lastTree != nil {
-			for _, entry := range lastTree.Entries {
-				if entry.Name == path {
-					if hex.EncodeToString(entry.Hash) == indexHash {
-						status = "staged (unchanged)"
-					} else {
-						status = "modified"
-					}
-
-					break
+	// 2. WD vs Index (Unstaged changes)
+	for path := range indexFiles {
+		if _, inWd := wdFiles[path]; !inWd {
+			results = append(results, FileStatus{Name: path, Status: "deleted"})
+		} else {
+			content, err := os.ReadFile(path)
+			if err == nil {
+				wdHash := blobHashForContent(content)
+				if wdHash != indexFiles[path] {
+					results = append(results, FileStatus{Name: path, Status: "modified"})
 				}
 			}
 		}
-		results = append(results, FileStatus{Name: path, Status: status})
 	}
+
+	// 3. Untracked files (In WD, but not in index)
+	for path := range wdFiles {
+		if _, inIndex := indexFiles[path]; !inIndex {
+			results = append(results, FileStatus{Name: path, Status: "untracked"})
+		}
+	}
+
 	return results
 }
 

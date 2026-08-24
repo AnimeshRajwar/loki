@@ -69,3 +69,7 @@ func (i *Index) WriteTree(store ObjectStore) string {
 	tree := &models.Tree{Entries: entries}
 	return store.WriteObject(tree.Serialize())
 }
+
+func (i *Index) Remove(path string) {
+	delete(i.Entries, path)
+}
