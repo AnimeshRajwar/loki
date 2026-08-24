@@ -36,6 +36,13 @@ func Add(files []string) {
 			continue
 		}
 
+		if repo.IsIgnored(f) {
+			fmt.Println(
+				utils.ColorText("warning: file is ignored by .lokiignore -> "+f, "warning"),
+			)
+			continue
+		}
+
 		if err := repo.AddFile(f); err != nil {
 			fmt.Println(
 				utils.ColorText("error: failed to stage -> "+f, "error"),

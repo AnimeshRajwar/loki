@@ -14,8 +14,10 @@ import (
 )
 
 type Repository struct {
-	store *storage.FileStorage
-	index *Index
+	store  *storage.FileStorage
+	index  *Index
+	root   string
+	ignore *LokiIgnore
 }
 
 func (r *Repository) Stat(path string) (os.FileInfo, error) {
@@ -33,9 +35,92 @@ func OpenRepository() *Repository {
 		os.Exit(1)
 	}
 	return &Repository{
-		store: storage.NewFileStorage(filepath.Join(repoRoot, ".loki")),
-		index: LoadIndex(),
+		store:  storage.NewFileStorage(filepath.Join(repoRoot, ".loki")),
+		index:  LoadIndex(),
+		root:   repoRoot,
+		ignore: LoadLokiIgnore(repoRoot),
 	}
+}
+
+func (r *Repository) Root() string {
+	if r.root != "" {
+		return r.root
+	}
+	if r.store != nil {
+		return filepath.Dir(r.store.GiveRoot())
+	}
+	cwd, _ := os.Getwd()
+	return cwd
+}
+
+func (r *Repository) RelPath(path string) (string, error) {
+	root := r.Root()
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return path, nil
+	}
+	rel, err := filepath.Rel(root, absPath)
+	if err != nil {
+		return path, nil
+	}
+	return filepath.ToSlash(rel), nil
+}
+
+func (r *Repository) IsIgnored(path string) bool {
+	if r.ignore == nil {
+		return false
+	}
+	relPath, err := r.RelPath(path)
+	if err != nil {
+		relPath = filepath.ToSlash(path)
+	}
+	return r.ignore.IsIgnored(relPath)
+}
+
+func (r *Repository) GetUntrackedFiles() []string {
+	root := r.Root()
+	headEntries, _ := r.GetHeadTreeEntries()
+	indexEntries := r.GetIndexEntries()
+
+	var untracked []string
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		relSlash := filepath.ToSlash(rel)
+		if relSlash == "." || relSlash == "" {
+			return nil
+		}
+
+		if r.ignore != nil && r.ignore.IsIgnored(relSlash) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		_, inIndex := indexEntries[relSlash]
+		_, inHead := headEntries[relSlash]
+
+		if !inIndex && !inHead {
+			untracked = append(untracked, relSlash)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil
+	}
+	return untracked
 }
 
 // Check for loki repo

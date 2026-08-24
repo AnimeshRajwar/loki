@@ -15,6 +15,7 @@ A minimal, educational Git-style version control system written in Go. Loki demo
 - **Colored CLI output**: All CLI outputs use colored text for better readability
 - **Repository guard**: Commands cannot run when repository is not initialized
 - **CI workflow**: Automated CI pipeline included
+- **.lokiignore support**: Exclude files and directories (e.g., binaries, `node_modules`, log files) from being tracked
 - Real object storage: blobs, trees, and commits (Git-style)
 
 ---
