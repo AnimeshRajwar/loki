@@ -52,6 +52,8 @@ func main() {
 		commands.Checkout(os.Args[2:])
 	case "rm":
 		commands.Rm(os.Args[2:])
+	case "reset":
+		commands.Reset(os.Args[2:])
 	case "help":
 		commands.Help()
 	case "config":

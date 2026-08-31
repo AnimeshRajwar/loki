@@ -249,7 +249,6 @@ func (r *Repository) Commit(message, author, email string) string {
 		}
 	}
 
-	r.index.Clear()
 	return commitHash
 }
 
@@ -570,6 +569,107 @@ func (r *Repository) ensureCleanForCheckout() error {
 		if blobHashForContent(content) != expectedHash {
 			return fmt.Errorf("working directory is not clean, unstaged changes in: %s", path)
 		}
+	}
+
+	return nil
+}
+
+func (r *Repository) updateHeadOrRef(commitHash string) error {
+	headData, err := os.ReadFile(".loki/HEAD")
+	if err != nil {
+		return err
+	}
+	ref := strings.TrimSpace(string(headData))
+	if strings.HasPrefix(ref, "ref: ") {
+		refPath := filepath.Join(".loki", strings.TrimPrefix(ref, "ref: "))
+		return os.WriteFile(refPath, []byte(commitHash+"\n"), 0644)
+	}
+	return os.WriteFile(".loki/HEAD", []byte(commitHash+"\n"), 0644)
+}
+
+func (r *Repository) Reset(target string, mode string) error {
+	if target == "" {
+		target = "HEAD"
+	}
+
+	var commitHash string
+	if target == "HEAD" {
+		var err error
+		commitHash, err = r.resolveHeadCommitHash()
+		if err != nil || commitHash == "" {
+			return fmt.Errorf("could not resolve HEAD")
+		}
+	} else {
+		hash, _, err := r.resolveCheckoutTarget(target)
+		if err != nil {
+			return err
+		}
+		commitHash = hash
+	}
+
+	treeHash, err := r.commitTreeHash(commitHash)
+	if err != nil {
+		return err
+	}
+
+	// 1. Update branch pointer
+	if err := r.updateHeadOrRef(commitHash); err != nil {
+		return fmt.Errorf("failed to update branch pointer: %v", err)
+	}
+
+	if mode == "soft" {
+		return nil
+	}
+
+	// 2. Mixed: Update index to match target tree
+	targetFiles := map[string]string{}
+	if err := r.collectTreeFiles(treeHash, "", targetFiles); err != nil {
+		return err
+	}
+
+	if mode == "mixed" {
+		r.index.Entries = make(map[string]string)
+		for path, blobHash := range targetFiles {
+			r.index.Add(path, blobHash)
+		}
+		r.index.Save()
+		return nil
+	}
+
+	// 3. Hard: Update index and overwrite working directory
+	if mode == "hard" {
+		currentTracked := map[string]string{}
+		if headCommit, err := r.resolveHeadCommitHash(); err == nil && headCommit != "" {
+			if headTreeHash, err := r.commitTreeHash(headCommit); err == nil && headTreeHash != "" {
+				_ = r.collectTreeFiles(headTreeHash, "", currentTracked)
+			}
+		}
+
+		for path := range currentTracked {
+			if strings.HasPrefix(path, ".loki/") || path == ".loki" {
+				continue
+			}
+			_ = os.Remove(filepath.FromSlash(path))
+		}
+
+		r.index.Entries = make(map[string]string)
+		for path, blobHash := range targetFiles {
+			blobData, err := r.store.ReadObject(blobHash)
+			if err != nil {
+				return fmt.Errorf("failed to read blob %s: %v", blobHash, err)
+			}
+			content := objectBody(blobData)
+
+			osPath := filepath.FromSlash(path)
+			if err := os.MkdirAll(filepath.Dir(osPath), 0755); err != nil {
+				return fmt.Errorf("failed to create directory for %s: %v", path, err)
+			}
+			if err := os.WriteFile(osPath, content, 0644); err != nil {
+				return fmt.Errorf("failed to write file %s: %v", path, err)
+			}
+			r.index.Add(path, blobHash)
+		}
+		r.index.Save()
 	}
 
 	return nil
