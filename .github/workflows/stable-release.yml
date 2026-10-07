@@ -125,7 +125,12 @@ jobs:
           cp scripts/install.ps1 release-assets/install-loki.ps1
           cp scripts/install-system.sh release-assets/install-loki-system.sh
           cp scripts/install-system.ps1 release-assets/install-loki-system.ps1
+          cp scripts/install-windows.bat release-assets/install-loki.bat
+          cp scripts/install-macos.command release-assets/install-loki.command
+          cp scripts/install-linux.run release-assets/install-loki.run
+          cp scripts/install-linux.desktop release-assets/install-loki.desktop || true
           chmod +x release-assets/install-loki.sh release-assets/install-loki-system.sh
+          chmod +x release-assets/install-loki.command release-assets/install-loki.run || true
 
       - name: Overwrite stable release
         env:

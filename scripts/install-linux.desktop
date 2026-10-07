@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Install Loki
+Exec=sh -c 'sudo "$(dirname "%k")/install-loki-system.sh" stable; read -n1 -p "Press any key to close..."'
+Type=Application
+Terminal=true
+Icon=utilities-terminal
