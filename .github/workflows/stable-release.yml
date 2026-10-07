@@ -123,7 +123,9 @@ jobs:
           set -euo pipefail
           cp scripts/install.sh release-assets/install-loki.sh
           cp scripts/install.ps1 release-assets/install-loki.ps1
-          chmod +x release-assets/install-loki.sh
+          cp scripts/install-system.sh release-assets/install-loki-system.sh
+          cp scripts/install-system.ps1 release-assets/install-loki-system.ps1
+          chmod +x release-assets/install-loki.sh release-assets/install-loki-system.sh
 
       - name: Overwrite stable release
         env:
