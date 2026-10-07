@@ -240,6 +240,17 @@ This project includes GitHub Actions workflows for CI and multi-platform binarie
 
 - **latest**: updated on every branch commit.
 - **stable**: updated only when you move/push the `stable` tag.
+- Both release channels include installer scripts:
+   - `install-loki.sh` for Linux/macOS
+   - `install-loki.ps1` for Windows
+
+Quick install (Linux/macOS):
+
+```sh
+curl -fsSL https://github.com/AnimeshRajwar/loki/releases/download/stable/install-loki.sh -o install-loki.sh
+chmod +x install-loki.sh
+./install-loki.sh stable
+```
 
 To update stable:
 

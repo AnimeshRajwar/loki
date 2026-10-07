@@ -118,6 +118,13 @@ jobs:
           cd release-assets
           sha256sum * > checksums.txt
 
+      - name: Add installer scripts
+        run: |
+          set -euo pipefail
+          cp scripts/install.sh release-assets/install-loki.sh
+          cp scripts/install.ps1 release-assets/install-loki.ps1
+          chmod +x release-assets/install-loki.sh
+
       - name: Overwrite stable release
         env:
           GH_TOKEN: ${{ github.token }}
