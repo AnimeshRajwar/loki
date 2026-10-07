@@ -64,11 +64,18 @@ jobs:
         run: |
           set -euo pipefail
           BIN="loki-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
-          if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
-            (cd dist && zip -9 "../packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "${BIN}")
+          TARGET_DIR="bundle/loki-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p "${TARGET_DIR}"
+
+          if [[ "${{ matrix.goos }}" == "windows" ]]; then
+            cp "dist/${BIN}" "${TARGET_DIR}/loki.exe"
           else
-            tar -C dist -czf "packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "${BIN}"
+            cp "dist/${BIN}" "${TARGET_DIR}/loki"
+            chmod +x "${TARGET_DIR}/loki"
           fi
+
+          tar -czf "packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" -C bundle "loki-${{ matrix.goos }}-${{ matrix.goarch }}"
+          (cd bundle && zip -9 -r "../packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "loki-${{ matrix.goos }}-${{ matrix.goarch }}")
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -86,11 +93,24 @@ jobs:
       cancel-in-progress: true
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-assets
           merge-multiple: true
+
+      - name: Verify packaged assets
+        run: |
+          set -euo pipefail
+          ls -la release-assets
+          COUNT=$(find release-assets -maxdepth 1 -type f | wc -l)
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "No release assets found"
+            exit 1
+          fi
 
       - name: Generate SHA256 checksums
         run: |
@@ -104,5 +124,6 @@ jobs:
         run: |
           gh release delete stable -y || true
           gh release create stable release-assets/* \
+            --repo "${GITHUB_REPOSITORY}" \
             --title "stable" \
             --notes "Rolling stable build from commit ${GITHUB_SHA}"
