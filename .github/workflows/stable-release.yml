@@ -1,0 +1,108 @@
+name: Stable Multi-Platform Release
+
+on:
+  push:
+    tags:
+      - stable
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            archive_ext: tar.gz
+          - goos: linux
+            goarch: arm64
+            ext: ""
+            archive_ext: tar.gz
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+            archive_ext: tar.gz
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+            archive_ext: tar.gz
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+            archive_ext: zip
+          - goos: windows
+            goarch: arm64
+            ext: .exe
+            archive_ext: zip
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist packaged
+          BIN="loki-${GOOS}-${GOARCH}${{ matrix.ext }}"
+          go build -trimpath -ldflags="-s -w" -o "dist/${BIN}" ./cmd/loki
+
+      - name: Package binary
+        run: |
+          set -euo pipefail
+          BIN="loki-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
+            (cd dist && zip -9 "../packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "${BIN}")
+          else
+            tar -C dist -czf "packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "${BIN}"
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: packaged/*
+          if-no-files-found: error
+
+  publish-stable:
+    name: Publish rolling stable release
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: rolling-stable-release
+      cancel-in-progress: true
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum * > checksums.txt
+
+      - name: Overwrite stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete stable -y || true
+          gh release create stable release-assets/* \
+            --title "stable" \
+            --notes "Rolling stable build from commit ${GITHUB_SHA}"
