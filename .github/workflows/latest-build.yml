@@ -1,0 +1,121 @@
+name: Latest Multi-Platform Build
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            archive_ext: tar.gz
+          - goos: linux
+            goarch: arm64
+            ext: ""
+            archive_ext: tar.gz
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+            archive_ext: tar.gz
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+            archive_ext: tar.gz
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+            archive_ext: zip
+          - goos: windows
+            goarch: arm64
+            ext: .exe
+            archive_ext: zip
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist packaged
+          BIN="loki-${GOOS}-${GOARCH}${{ matrix.ext }}"
+          go build -trimpath -ldflags="-s -w" -o "dist/${BIN}" ./cmd/loki
+
+      - name: Package binary
+        run: |
+          set -euo pipefail
+          BIN="loki-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
+            (cd dist && zip -9 "../packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "${BIN}")
+          else
+            tar -C dist -czf "packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "${BIN}"
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: latest-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: packaged/*
+          if-no-files-found: error
+
+  publish-latest:
+    name: Publish rolling latest release
+    if: github.event_name == 'push' && github.ref_type == 'branch'
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: rolling-latest-release
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum * > checksums.txt
+
+      - name: Move latest tag to this commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f latest "${GITHUB_SHA}"
+          git push origin refs/tags/latest --force
+
+      - name: Overwrite latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest -y || true
+          gh release create latest release-assets/* \
+            --title "latest" \
+            --notes "Rolling latest build from commit ${GITHUB_SHA}" \
+            --prerelease

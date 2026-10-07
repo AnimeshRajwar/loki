@@ -230,7 +230,23 @@ Notes:
 
 ## CI
 
-This project includes a GitHub Actions CI workflow that automatically builds and tests Loki on every push and pull request.
+This project includes GitHub Actions workflows for CI and multi-platform binaries:
+
+- **Go CI**: runs formatting, vet, and build checks.
+- **Latest Multi-Platform Build**: builds binaries for Linux/macOS/Windows on every commit, then overwrites a rolling **latest** release.
+- **Stable Multi-Platform Release**: runs only when the `stable` tag is pushed and overwrites a rolling **stable** release.
+
+### Release channels
+
+- **latest**: updated on every branch commit.
+- **stable**: updated only when you move/push the `stable` tag.
+
+To update stable:
+
+```sh
+git tag -fa stable -m "stable build"
+git push origin stable --force
+```
 
 ---
 
