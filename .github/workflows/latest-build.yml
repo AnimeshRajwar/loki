@@ -75,23 +75,6 @@ jobs:
             chmod +x "${TARGET_DIR}/loki"
           fi
 
-          # Copy OS-specific installer wrappers into the bundle so ZIP/TAR contain them
-          if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            cp scripts/install-windows.bat "${TARGET_DIR}/install-loki.bat" || true
-            cp scripts/install.ps1 "${TARGET_DIR}/install-loki.ps1" || true
-            cp scripts/install-system.ps1 "${TARGET_DIR}/install-loki-system.ps1" || true
-          else
-            cp scripts/install.sh "${TARGET_DIR}/install-loki.sh" || true
-            cp scripts/install-system.sh "${TARGET_DIR}/install-loki-system.sh" || true
-            if [[ "${{ matrix.goos }}" == "darwin" ]]; then
-              cp scripts/install-macos.command "${TARGET_DIR}/install-loki.command" || true
-            else
-              cp scripts/install-linux.run "${TARGET_DIR}/install-loki.run" || true
-              cp scripts/install-linux.desktop "${TARGET_DIR}/install-loki.desktop" || true
-            fi
-            chmod +x "${TARGET_DIR}/install-loki.sh" "${TARGET_DIR}/install-loki-system.sh" || true
-          fi
-
           tar -czf "packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" -C bundle "loki-${{ matrix.goos }}-${{ matrix.goarch }}"
           (cd bundle && zip -9 -r "../packaged/loki-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "loki-${{ matrix.goos }}-${{ matrix.goarch }}")
 
